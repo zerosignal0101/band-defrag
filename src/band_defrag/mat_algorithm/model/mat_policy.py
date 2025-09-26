@@ -47,7 +47,7 @@ class TransformerPolicy:
         self.tpdv = dict(dtype=torch.float32, device=device)  # 统一把新建张量送到相同 device / dtype。
 
         if self.algorithm_name in ["mat", "mat_dec"]:
-            from mat_transformer import MultiAgentTransformer as MAT
+            from src.band_defrag.mat_algorithm.model.mat_transformer import MultiAgentTransformer as MAT
         else:
             raise NotImplementedError
 

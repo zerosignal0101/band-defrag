@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from mat_actions import (
+from src.band_defrag.mat_algorithm.model.mat_actions import (
     discrete_autoregreesive_act,
     discrete_parallel_act,
     continuous_autoregreesive_act,
