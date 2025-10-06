@@ -1,11 +1,9 @@
 class Service:
 
-    def __init__(self, service_id, source, source_id, destination=None, destination_id=None, arrival_time=None,
+    def __init__(self, service_id, source_id, destination_id=None, arrival_time=None,
                  holding_time=None, bit_rate=None, modulation=None, power=None):
         self.service_id = service_id
-        self.source = source
         self.source_id = source_id
-        self.destination = destination
         self.destination_id = destination_id
         self.arrival_time = arrival_time
         self.holding_time = holding_time
@@ -22,4 +20,4 @@ class Service:
         msg = '{'
         msg += '' if self.bit_rate is None else f'br: {self.bit_rate}, '
         # msg += '' if self.service_class is None else f'cl: {self.service_class}, '
-        return f'Serv. {self.service_id} ({self.source} -> {self.destination})' + msg
+        return f'Serv. {self.service_id} ({self.source_id} -> {self.destination_id})' + msg

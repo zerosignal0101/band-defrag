@@ -641,7 +641,7 @@ def new_service(topology, services_processed_since_reset):
     '''
     生成一个随机业务
     '''
-    src, src_id, dst, dst_id = _get_node_pair(topology)
+    src, __, dst, ___ = _get_node_pair(topology)
 
     # 用自定义函数做加权采样，小比特率业务比重大
     bit_rate_candidates = np.arange(100, 501, 10)  # 每10为一个档
@@ -651,9 +651,8 @@ def new_service(topology, services_processed_since_reset):
 
     bit_rate = np.random.choice(bit_rate_candidates, p=weights)
 
-    service = Service(service_id=services_processed_since_reset, source=src, source_id=src_id,
-                      destination=dst, destination_id=dst_id,
-                      bit_rate=bit_rate)
+    service = Service(service_id=services_processed_since_reset, 
+                      source_id=src, destination_id=dst, bit_rate=bit_rate)
 
     # services_processed_since_reset += 1
 
