@@ -96,8 +96,8 @@ def blocking_test(topology, services, max_agent, policy, progress_desc="Services
                 blocknum2 += 1
 
 
-    print("blocking_num: ", blocknum1, blocknum2)
-    print('整理次数：', denum2)
+    # print("blocking_num: ", blocknum1, blocknum2)
+    # print('整理次数：', denum2)
 
     return {
         'blocknum1': blocknum1,

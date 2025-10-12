@@ -21,3 +21,21 @@ class Service:
         msg += '' if self.bit_rate is None else f'br: {self.bit_rate}, '
         # msg += '' if self.service_class is None else f'cl: {self.service_class}, '
         return f'Serv. {self.service_id} ({self.source_id} -> {self.destination_id})' + msg
+    
+    def to_dict(self) -> dict:
+        """将 Service 对象实例转换为字典，以便序列化为 JSON"""
+        return {
+            "service_id": self.service_id,
+            "source_id": self.source_id,
+            "destination_id": self.destination_id,
+            "arrival_time": self.arrival_time,
+            "holding_time": self.holding_time,
+            "bit_rate": self.bit_rate,
+            "modulation": self.modulation,
+            "power": self.power,
+            "path": self.path,
+            "wavelength": self.wavelength,
+            "snr_requirement": self.snr_requirement,
+            "GSNR": self.GSNR,
+            "utilization": self.utilization,
+        }
