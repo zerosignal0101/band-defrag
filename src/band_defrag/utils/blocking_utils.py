@@ -5,8 +5,8 @@ import random
 import time
 import torch
 
-from src.band_defrag.network_loader.multiband_optical_network_env import MultibandOpticalNetworkEnv
-from src.band_defrag.utils.network_utils import release_service, random_fit, select_sorting_services
+from band_defrag.network_loader.multiband_optical_network_env import MultibandOpticalNetworkEnv
+from band_defrag.utils.network_utils import release_service, random_fit, select_sorting_services
 
 SEED = 42
 random.seed(SEED)

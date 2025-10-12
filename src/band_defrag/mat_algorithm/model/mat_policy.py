@@ -1,7 +1,7 @@
 import torch
 import numpy as np
-from src.band_defrag.utils.mat_model_utils import get_shape_from_obs_space, get_shape_from_act_space
-from src.band_defrag.utils.mat_model_utils import check
+from band_defrag.utils.mat_model_utils import get_shape_from_obs_space, get_shape_from_act_space
+from band_defrag.utils.mat_model_utils import check
 
 
 class TransformerPolicy:
@@ -47,7 +47,7 @@ class TransformerPolicy:
         self.tpdv = dict(dtype=torch.float32, device=device)  # 统一把新建张量送到相同 device / dtype。
 
         if self.algorithm_name in ["mat", "mat_dec"]:
-            from src.band_defrag.mat_algorithm.model.mat_transformer import MultiAgentTransformer as MAT
+            from band_defrag.mat_algorithm.model.mat_transformer import MultiAgentTransformer as MAT
         else:
             raise NotImplementedError
 

@@ -5,7 +5,7 @@ import random
 import copy
 import torch
 
-from src.band_defrag.utils.network_utils import (
+from band_defrag.utils.network_utils import (
     release_service, one_link_transmission, check_action,
     compute_current_service_utilization_increment, compute_current_service_GSNR_increment,
     compute_related_services_GSNR_increment,

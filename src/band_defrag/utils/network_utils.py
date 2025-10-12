@@ -11,8 +11,8 @@ import time
 import torch
 import sys
 
-from src.band_defrag.models.path import Path
-from src.band_defrag.models.service import Service
+from band_defrag.models.path import Path
+from band_defrag.models.service import Service
 
 SEED = 42
 random.seed(SEED)
