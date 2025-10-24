@@ -39,11 +39,11 @@ def blocking_test(topology, services, max_agent, policy, progress_desc="Services
         # 释放到期业务
         static_dict = copy.deepcopy(service_dict)
         for i in static_dict.keys():
-            if static_dict[i].holding_time <= time0:
+            if static_dict[i].departure_time <= time0:
                 release_service(topology, static_dict[i], service_dict)
         static_dict2 = copy.deepcopy(service_dict2)
         for i in static_dict2.keys():
-            if static_dict2[i].holding_time <= time0:
+            if static_dict2[i].departure_time <= time0:
                 release_service(topology2, static_dict2[i], service_dict2)
 
         # ====== 策略 1: 不重排 ======
@@ -75,7 +75,7 @@ def blocking_test(topology, services, max_agent, policy, progress_desc="Services
             current_defrag_event = {
                 'trigger_service_id': tmp_service2.service_id,
                 'arrival_time': time0,
-                'holding_time': tmp_service2.holding_time,
+                'departure_time': tmp_service2.departure_time,
                 'reallocations': []  # 存储被重排服务的旧/新状态
             }
             is_defrag_attempted = False

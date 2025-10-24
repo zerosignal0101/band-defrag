@@ -1,12 +1,12 @@
 class Service:
 
     def __init__(self, service_id, source_id, destination_id=None, arrival_time=None,
-                 holding_time=None, bit_rate=None, modulation=None, power=None):
+                 departure_time=None, bit_rate=None, modulation=None, power=None):
         self.service_id = service_id
         self.source_id = source_id
         self.destination_id = destination_id
         self.arrival_time = arrival_time
-        self.holding_time = holding_time
+        self.departure_time = departure_time
         self.bit_rate = bit_rate
         self.modulation = modulation
         self.power = power
@@ -29,7 +29,7 @@ class Service:
             "source_id": self.source_id,
             "destination_id": self.destination_id,
             "arrival_time": self.arrival_time,
-            "holding_time": self.holding_time,
+            "departure_time": self.departure_time,
             "bit_rate": self.bit_rate,
             "modulation": self.modulation,
             "power": self.power,

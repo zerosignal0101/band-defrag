@@ -290,10 +290,10 @@ def new_service(topology, services_processed_since_reset):
     return service
 
 
-def new_service_dict(topology, erlang, service_num):
+def new_service_dict(topology, avg_arrival_interval, avg_holding_time, service_arrival_time_max):
     # 定义仿真参数
-    lambda_rate = 1  # 到达率
-    mu_rate = 1 / erlang  # 持续时间的倒数
+    lambda_rate = 1 / avg_arrival_interval # 到达率
+    mu_rate = 1 / avg_holding_time  # 持续时间的倒数
     # 初始化变量
     time = 0
     calls_in_progress = 0
@@ -302,11 +302,11 @@ def new_service_dict(topology, erlang, service_num):
     call_departures = []
     service_dict = {}
     # 开始仿真
-    while time < service_num:
+    while time < service_arrival_time_max:
         # 下一次到达时间（到达间隔时间服从参数为λ的指数分布）
         time_to_next_arrival = np.random.exponential(1 / lambda_rate)
         time += time_to_next_arrival
-        if time >= service_num:
+        if time >= service_arrival_time_max:
             break
 
         # 记录呼叫到达时间
@@ -321,7 +321,7 @@ def new_service_dict(topology, erlang, service_num):
         tmp_service = new_service(topology, total_calls + 1)
         total_calls += 1
         tmp_service.arrival_time = time
-        tmp_service.holding_time = call_departure_time
+        tmp_service.departure_time = call_departure_time
         service_dict[tmp_service.service_id] = tmp_service
 
     return service_dict
