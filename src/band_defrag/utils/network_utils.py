@@ -236,12 +236,25 @@ def process_topology(topology, edge_weight_key_preference=('weight', 'length')):
             s, t = nodes_list[i], nodes_list[j]
             paths = list(islice(nx.shortest_simple_paths(G, s, t, weight=weight_attr), k_paths))
             lengths = [get_path_weight(G, p, weight_attr if weight_attr else 'weight') for p in paths]
-            objs = []
+            
+            # 存储正向路径 (s -> t)
+            forward_objs = []
             for p, L in zip(paths, lengths):
-                objs.append(Path(path_id=path_counter, node_list=p, length=L))
+                forward_objs.append(Path(path_id=path_counter, node_list=p, length=L))
                 path_counter += 1
-            k_shortest_paths[(s, t)] = objs
-            k_shortest_paths[(t, s)] = objs
+            k_shortest_paths[(s, t)] = forward_objs
+            
+            # 存储反向路径 (t -> s)
+            backward_objs = []
+            for obj in forward_objs:
+                # 反转节点列表但保持相同的路径ID和长度
+                reversed_path = Path(
+                    path_id=obj.path_id,
+                    node_list=list(reversed(obj.node_list)),  # 反转节点顺序
+                    length=obj.length  # 长度保持不变
+                )
+                backward_objs.append(reversed_path)
+            k_shortest_paths[(t, s)] = backward_objs
 
     G.graph['name'] = 'sweden'
     G.graph['ksp'] = k_shortest_paths

@@ -13,7 +13,7 @@ class Service:
         self.path = None
         self.wavelength = None
         self.snr_requirement = 0  # 所需的SNR
-        self.GSNR = 0
+        self.gsnr = 0
         self.utilization = 0
 
     def __str__(self):
@@ -36,6 +36,6 @@ class Service:
             "path": self.path,
             "wavelength": self.wavelength,
             "snr_requirement": self.snr_requirement,
-            "GSNR": self.GSNR,
+            "gsnr": self.gsnr,
             "utilization": self.utilization,
         }
