@@ -1,8 +1,9 @@
 [project]
 name = "band-defrag"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = [
+    {name = "ljxljx020406"},
     {name = "zerosignal",email = "zerosignal0101@proton.me"}
 ]
 readme = "README.md"
@@ -15,7 +16,8 @@ dependencies = [
     "tensorboardx (>=2.6.4,<3.0.0)",
     "numba (>=0.62.0,<0.63.0)",
     "tqdm (>=4.67.1,<5.0.0)",
-    "pyyaml (>=6.0.2,<7.0.0)"
+    "pyyaml (>=6.0.2,<7.0.0)",
+    "pydantic (>=2.12.3,<3.0.0)",
 ]
 
 [tool.poetry]
