@@ -1,6 +1,7 @@
 from itertools import islice
 from typing import List, Literal, Union, Optional, Annotated, Tuple
 import numpy as np
+from numpy.typing import NDArray
 import math
 import random
 from numba import njit, prange
@@ -59,7 +60,7 @@ def get_r_f(frequency: float, P_total: float) -> float:
 @njit(parallel=True, nogil=True, cache=True)
 def get_Pi_z(
         distance: float, P_total: float,
-        frequencies: np.ndarray[np.float64], Power: np.ndarray[np.float64],
+        frequencies: NDArray[np.float64], Power: NDArray[np.float64],
         i: int, channels: int
 ) -> float:  # Changed return type from List[float] to float
     """
@@ -103,9 +104,9 @@ def watt2dbm(value: float) -> float:  # Not njit, but calls njit lin2db
 
 @njit(parallel=True, nogil=True, cache=True)
 def calculate_ASE_noise(
-        Att: np.ndarray[np.float64], fi: np.ndarray[np.float64],
-        Bch: np.ndarray[np.float64], distance: float
-) -> np.ndarray[np.float64]:
+        Att: NDArray[np.float64], fi: NDArray[np.float64],
+        Bch: NDArray[np.float64], distance: float
+) -> NDArray[np.float64]:
     channels, n = fi.shape
     c = 3e8
     n_sp = 1.41  # n_sp = NF(4.5dB)/2
@@ -128,8 +129,8 @@ def calculate_ASE_noise(
 
 @njit(parallel=True, nogil=True, cache=True)
 def _numba_one_link_transmission(
-        distance: float, channels: int, Power: np.ndarray[np.float64], frequencies: np.ndarray[np.float64]
-) -> Tuple[np.ndarray[np.float64], np.ndarray[np.float64]]:
+        distance: float, channels: int, Power: NDArray[np.float64], frequencies: NDArray[np.float64]
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     计算链路 ASE 噪声和调整后的 Power（考虑信号再分配）。
     输入的 Power 不会被修改。
@@ -162,8 +163,8 @@ def _numba_one_link_transmission(
 
 
 @njit(nogil=True, cache=True)
-def cal_eps(B_i: float, f_i: float, a_i: float, mean_L: float, beta2: np.ndarray[np.float64],
-            beta3: np.ndarray[np.float64]) -> float:
+def cal_eps(B_i: float, f_i: float, a_i: float, mean_L: float, beta2: NDArray[np.float64],
+            beta3: NDArray[np.float64]) -> float:
     # beta2 and beta3 are expected to be 1D arrays here from the caller, so np.mean is appropriate.
     return (3 / 10) * np.log(1 + (6 / a_i) / (
             mean_L * np.arcsinh(
@@ -179,8 +180,8 @@ def cal_SPM(phi_i: float, T_i: float, B_i: float, a: float, a_bar: float, gamma:
 
 
 @njit(nogil=True, cache=True)
-def cal_XPM(Pi: float, Pk: np.ndarray[np.float64], phi_ik: np.ndarray[np.float64], T_k: np.ndarray[np.float64],
-            B_i: float, B_k: np.ndarray[np.float64], a: np.ndarray[np.float64], a_bar: np.ndarray[np.float64],
+def cal_XPM(Pi: float, Pk: NDArray[np.float64], phi_ik: NDArray[np.float64], T_k: NDArray[np.float64],
+            B_i: float, B_k: NDArray[np.float64], a: NDArray[np.float64], a_bar: NDArray[np.float64],
             gamma: float) -> float:
     if Pi == 0:
         return 0
@@ -194,11 +195,11 @@ def cal_XPM(Pi: float, Pk: np.ndarray[np.float64], phi_ik: np.ndarray[np.float64
 
 @njit(parallel=True, nogil=True, cache=True)
 def calculate_NLI_noise(
-        Att: np.ndarray[np.float64], Att_bar: np.ndarray[np.float64], Cr: np.ndarray[np.float64],
-        Pch: np.ndarray[np.float64], fi: np.ndarray[np.float64], Bch: np.ndarray[np.float64],
-        Length: np.ndarray[np.float64], D: np.ndarray[np.float64], S: np.ndarray[np.float64],
-        gamma: np.ndarray[np.float64], RefLambda: float
-) -> np.ndarray[np.float64]:
+        Att: NDArray[np.float64], Att_bar: NDArray[np.float64], Cr: NDArray[np.float64],
+        Pch: NDArray[np.float64], fi: NDArray[np.float64], Bch: NDArray[np.float64],
+        Length: NDArray[np.float64], D: NDArray[np.float64], S: NDArray[np.float64],
+        gamma: NDArray[np.float64], RefLambda: float
+) -> NDArray[np.float64]:
     """
     Returns nonlinear interference power and coefficient for each WDM
     channel.
@@ -275,8 +276,8 @@ def calculate_NLI_noise(
 
 @njit(parallel=True, nogil=True, cache=True)
 def calculate_GSNR(
-        Power: np.ndarray[np.float64], noise: np.ndarray[np.float64], channels: int
-) -> np.ndarray[np.float64]:
+        Power: NDArray[np.float64], noise: NDArray[np.float64], channels: int
+) -> NDArray[np.float64]:
     GSNR = np.zeros(channels)
     for i in prange(channels):
         if Power[i] != 0 and noise[i] != 0:  # Added check for noise[i] != 0
@@ -288,7 +289,7 @@ def calculate_GSNR(
 
 # Numba-optimized tiling function
 @njit(parallel=True, nogil=True, cache=True)
-def tile_implementation(arr: np.ndarray[np.float64], num_columns: int) -> np.ndarray[np.float64]:
+def tile_implementation(arr: NDArray[np.float64], num_columns: int) -> NDArray[np.float64]:
     rows = arr.shape[0]
     expanded = np.empty((rows, num_columns))
     for i in prange(rows):
@@ -298,8 +299,8 @@ def tile_implementation(arr: np.ndarray[np.float64], num_columns: int) -> np.nda
 
 
 def one_link_transmission(
-        distance: float, channels: int, Power: np.ndarray[np.float64], frequencies: np.ndarray[np.float64]
-) -> Tuple[np.ndarray[np.float64], np.ndarray[np.float64]]:
+        distance: float, channels: int, Power: NDArray[np.float64], frequencies: NDArray[np.float64]
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     '''
     单链路传输计算，返回链路上每个信道的 GSNR。
     不修改原始 Power 数组，避免副作用。

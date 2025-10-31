@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Literal, Union, Optional, Annotated, Tuple
+from typing import List, Literal, Union, Optional, Annotated, Tuple, Dict
 import numpy as np
 import networkx as nx
 import random
@@ -12,33 +12,21 @@ class NetworkService(BaseModel):
     arrival_time: float
     departure_time: float
     bit_rate_requirement: int
-
-
-class AllocatedService(NetworkService):
-    power: float
-    path: List[int]
-    wavelength: int
     snr_requirement: float
-    utilization: float
-
-
-def random_get_node_pairs(topology: nx.DiGraph, pair_num: int) -> List[Tuple[int, int]]:
-    node_pairs = []
-    for i in range(pair_num):
-        source_id = random.randint(0, len(topology.nodes) - 1)
-        destination_id = random.randint(0, len(topology.nodes) - 2)
-        if destination_id >= source_id:
-            destination_id += 1
-        node_pairs.append((source_id, destination_id))
-
-    return node_pairs
 
 
 def generate_services(
-        topology: nx.DiGraph, service_num: int,
+        ksp_cache: Dict[Tuple[int, int], List[List[int]]], service_num: int,
         avg_arrival_interval: float, avg_holding_time: float
 ) -> List[NetworkService]:
-    node_pairs = random_get_node_pairs(topology, service_num)
+    node_pairs = []
+
+    link_keys = list(ksp_cache.keys())
+    for _ in range(service_num):
+        link_key = random.choice(link_keys)
+        link_key = random.choice([link_key, (link_key[1], link_key[0])])
+        node_pairs.append(link_key)
+
     services = []
 
     # 定义仿真参数
@@ -67,10 +55,23 @@ def generate_services(
 
         bit_rate_requirement = np.random.choice(bit_rate_candidates, p=weights)
 
+        if bit_rate_requirement > 700:
+            snr_requirement = 26.5 - 1
+        elif bit_rate_requirement > 600:
+            snr_requirement = 25.0 - 1
+        elif bit_rate_requirement > 500:
+            snr_requirement = 23.5 - 1
+        elif bit_rate_requirement > 400:
+            snr_requirement = 21.0 - 1
+        elif bit_rate_requirement > 300:
+            snr_requirement = 18.7 - 1
+        else:
+            snr_requirement = 15
+
         service = NetworkService(
             service_id=service_id, source_id=source_id, destination_id=destination_id,
             arrival_time=arrival_time, departure_time=departure_time,
-            bit_rate_requirement=bit_rate_requirement
+            bit_rate_requirement=bit_rate_requirement, snr_requirement=snr_requirement
         )
         services.append(service)
 
