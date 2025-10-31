@@ -341,11 +341,6 @@ def one_link_transmission(
     # Total noise
     noise = NLI_noise + ASE_noise
 
-    print("noise [0]:", noise[0])
-    print("NLI_noise [0]:", NLI_noise[0])
-    print("ASE_noise [0]:", ASE_noise[0])
-    print('-' * 50)
-
     # Calculate GSNR
     GSNR = calculate_GSNR(adjusted_Power, noise, channels)
 
