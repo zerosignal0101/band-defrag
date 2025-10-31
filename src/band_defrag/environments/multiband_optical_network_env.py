@@ -172,7 +172,7 @@ class MultibandOpticalNetworkEnv(gym.Env):
             # gsnr_norm = _norm_gsnr(gsnr_min)
             # print('gsnr_min:', gsnr_min, gsnr_norm)
 
-            bitrate_norm = current_service.bit_rate / 500.0  # 最大业务比特率为500Gbps
+            bitrate_norm = current_service.bit_rate_requirement / 500.0  # 最大业务比特率为500Gbps
             link_length_mean = link_length / (len(path) - 1) / 2600000.0  # 最长链路为2600km
             link_length_max = link_length_max / 2600000.0
             # observation.append(np.concatenate([gsnr_norm, ISRS_max, ISRS_mean, np.asarray([link_length_max], np.float32), np.asarray([link_length_mean], np.float32), np.asarray([bitrate_norm], np.float32)]))
