@@ -9,11 +9,8 @@ from band_defrag.network_sim.service_generator import NetworkService
 
 
 class AllocatedService(NetworkService):
-    power: float
     path: List[int]
     wavelength: int
-    gsnr: float
-    utilization: float
 
 
 CHANNEL_NUM = 80
@@ -46,13 +43,16 @@ CENTER_FREQUENCIES = np.concatenate([
 
 
 def ksp_allocate_service(
-        allocation_status: Dict[Tuple[int, int], NDArray[bool]],
-        allocation_service_idx: Dict[Tuple[int, int], NDArray[int]],
-        link_distances: Dict[Tuple[int, int], float],
-        ksp_cache: Dict[Tuple[int, int], List[List[int]]],
-        service_dict: Dict[int, NetworkService],
-        service: NetworkService
-):
+        allocation_status: Dict[Tuple[int, int], NDArray[bool]],  # RW
+        allocated_service_idx: Dict[Tuple[int, int], NDArray[int]],  # RW
+        link_distances: Dict[Tuple[int, int], float],  # RO
+        ksp_cache: Dict[Tuple[int, int], List[List[int]]],  # RO
+        allocated_service_dict: Dict[int, AllocatedService],  # RW
+        service: NetworkService  # RO
+) -> Tuple[bool, AllocatedService | None]:
+    # Checking if this service has been allocated, that should not happen
+    assert allocated_service_dict.get(service.service_id) is None, 'Already allocated, that should not happen'
+
     ksp_paths = ksp_cache[(min(service.source_id, service.destination_id),
                            max(service.source_id, service.destination_id))]
 
@@ -61,6 +61,7 @@ def ksp_allocate_service(
     ref_power = np.concatenate([ref_power_l, ref_power_c])
 
     is_allocated = False
+    allocated_service = None
     for k, path in enumerate(ksp_paths):
         # Prepare links on the path
         link_key_list = [
@@ -96,8 +97,8 @@ def ksp_allocate_service(
                     if wave_id_checking == wave_id:
                         continue
                     if allocation_status[link_key][wave_id_checking]:
-                        service_id_checking = allocation_service_idx[link_key][wave_id_checking]
-                        service_data_checking = service_dict.get(service_id_checking, None)
+                        service_id_checking = allocated_service_idx[link_key][wave_id_checking]
+                        service_data_checking = allocated_service_dict.get(service_id_checking, None)
                         if service_data_checking.snr_requirement > gsnr[wave_id_checking]:
                             print(f'Associated service SNR not satisfied '
                                   f'{service_data_checking.snr_requirement} > {gsnr[wave_id_checking]}')
@@ -115,11 +116,17 @@ def ksp_allocate_service(
 
             for link_key in link_key_list:
                 allocation_status[link_key][wave_id] = True
-                allocation_service_idx[link_key][wave_id] = service.service_id
+                allocated_service_idx[link_key][wave_id] = service.service_id
 
             # 分配成功，退出当前路径（假设一次分配一个波段）
             is_allocated = True
-            print(f'Allocate success on {wave_id} with path: \n', path)
+            # print(f'Allocate success on {wave_id} with path: \n', path)
+            allocated_service = AllocatedService(
+                **service.model_dump(),
+                path=path,
+                wavelength=wave_id,
+            )
+            allocated_service_dict[allocated_service.service_id] = allocated_service
             break
 
-    pass
+    return is_allocated, allocated_service
