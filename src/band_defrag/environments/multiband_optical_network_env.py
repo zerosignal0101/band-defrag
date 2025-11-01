@@ -1,15 +1,14 @@
 import time
 from collections import Counter
-from gym.core import ObsType
 from numpy.typing import NDArray
 from typing import List, Literal, Union, Optional, Annotated, Tuple, Dict
-import gym
 import numpy as np
 import random
 import copy
 import torch
 
-from band_defrag.network_sim.allocators import CHANNEL_NUM, CENTER_FREQUENCIES, AllocatedService, get_available_bands
+from band_defrag.network_sim.allocators import CHANNEL_NUM, CENTER_FREQUENCIES, AllocatedService, get_available_bands, \
+    try_allocate_service_on_path_wavelength
 from band_defrag.network_sim.service_generator import NetworkService
 
 
@@ -53,7 +52,7 @@ def get_service_overlap_counts(
     return dict(service_counter)
 
 
-class MultibandOpticalNetworkEnv(gym.Env):
+class MultibandOpticalNetworkEnv:
     def __init__(
             self,
             max_agents: int,
@@ -90,10 +89,11 @@ class MultibandOpticalNetworkEnv(gym.Env):
         self.allocated_service_idx = copy.deepcopy(allocated_service_idx)
         self.allocated_service_dict = copy.deepcopy(allocated_service_dict)
 
-        self.observation_space = [gym.spaces.Box(low=0, high=1 + 1e-6, shape=(163,), dtype=float)
-                                  for n in range(self.max_agents)]
-        self.share_observation_space = self.observation_space.copy()
-        self.action_space = [gym.spaces.Discrete(80) for n in range(self.max_agents)]
+        # Overlap service detect
+        service_overlap_counts = get_service_overlap_counts(
+            self.blocked_edge_key_list, self.allocation_status, self.allocated_service_idx
+        )
+        self.sorted_service_id_list = sorted(service_overlap_counts.items(), key=lambda item: item[1], reverse=True)
 
     def reset(
             self,
@@ -105,11 +105,7 @@ class MultibandOpticalNetworkEnv(gym.Env):
         self.allocated_service_idx = copy.deepcopy(self.ori_allocated_service_idx)
         self.allocated_service_dict = copy.deepcopy(self.ori_allocated_service_dict)
 
-        service_overlap_counts = get_service_overlap_counts(
-            self.blocked_edge_key_list, self.allocation_status, self.allocated_service_idx
-        )
-        sorted_service_id_list = sorted(service_overlap_counts.items(), key=lambda item: item[1], reverse=True)
-        print('Sorted service ids:', sorted_service_id_list)
+        sorted_service_id_list = self.sorted_service_id_list
 
         available_action_list = []
         for index, (service_id_for_action, service_overlap_count) in enumerate(sorted_service_id_list):
@@ -138,12 +134,13 @@ class MultibandOpticalNetworkEnv(gym.Env):
         agent_mask = np.ones(self.max_agents, dtype=np.float64)
         agent_mask[num_agent_needed:] = 0.0
 
-        observation = self._get_observation(sorted_service_id_list)
+        observation = self._get_observation()
 
         return observation, available_actions, agent_mask
 
-    def _get_observation(self, sorted_service_id_list: List[Tuple[int, int]]) -> NDArray[np.float64]:
+    def _get_observation(self) -> NDArray[np.float64]:
         observation = []
+        sorted_service_id_list = self.sorted_service_id_list
         for index, (service_id_related, service_overlap_count) in enumerate(sorted_service_id_list):
             if index >= self.max_agents:
                 break
@@ -188,17 +185,32 @@ class MultibandOpticalNetworkEnv(gym.Env):
             ISRS_mean = np.mean(ISRS_per_edge, axis=0)  # (W,)
 
             bitrate_norm = service_data_related.bit_rate_requirement / 500.0  # 最大业务比特率为500Gbps
-            link_length_norm = link_total_length / (len(service_edge_key_list_related) - 1) / 2600000.0  # 最长链路为2600km
+            link_length_norm = link_total_length / len(service_edge_key_list_related) / 2600000.0  # 最长链路为2600km
             edge_distance_max_norm = edge_distance_max / 2600000.0
 
             observation.append(np.concatenate(
                 [ISRS_max, ISRS_mean, np.asarray([edge_distance_max_norm], np.float64),
                  np.asarray([link_length_norm], np.float64), np.asarray([bitrate_norm], np.float64)]))
 
-        padding_vec = np.ones(CHANNEL_NUM * 2 + 3, dtype=np.float32) * -1.0
+        padding_vec = np.ones(CHANNEL_NUM * 2 + 3, dtype=np.float64) * -1.0
         num_rows_to_pad = self.max_agents - len(observation)
         if num_rows_to_pad > 0:
             padding_rows = [padding_vec for _ in range(num_rows_to_pad)]
             observation.extend(padding_rows)
 
         return np.stack(observation, axis=0)
+
+    def step(self, actions: NDArray[int]):
+        for new_wavelength, (service_id, _) in zip(actions, self.sorted_service_id_list):
+            service_data = self.allocated_service_dict[service_id]
+            if new_wavelength == service_data.service_id:
+                continue
+            is_reallocation_success, allocated_service = try_allocate_service_on_path_wavelength(
+                service=NetworkService(**service_data.model_dump()),
+                path=service_data.path,
+                wavelength=new_wavelength,
+                allocated_service_idx=self.allocated_service_idx,
+                allocation_status=self.allocation_status,
+                allocated_service_dict=self.allocated_service_dict,
+                edge_distances=self.edge_distances
+            )
