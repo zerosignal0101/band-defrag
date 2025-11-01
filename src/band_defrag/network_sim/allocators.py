@@ -130,3 +130,66 @@ def ksp_allocate_service(
             break
 
     return is_allocated, allocated_service
+
+
+def release_service(
+        allocation_status: Dict[Tuple[int, int], NDArray[bool]],  # RW
+        allocated_service_idx: Dict[Tuple[int, int], NDArray[int]],  # RW
+        link_distances: Dict[Tuple[int, int], float],  # RO (not directly used for release but part of context)
+        ksp_cache: Dict[Tuple[int, int], List[List[int]]],  # RO (not directly used for release but part of context)
+        allocated_service_dict: Dict[int, AllocatedService],  # RW
+        service: AllocatedService  # RO
+):
+    """
+    移除一个业务的分配。
+    """
+    # 1. 检查业务是否存在于已分配列表中
+    allocated_data = allocated_service_dict.get(service.service_id)
+    if allocated_data is None:
+        # 如果业务不存在，可能是一个错误或重复释放，根据需求决定是抛出异常还是静默处理
+        print(f"Warning: Service ID {service.service_id} not found in allocated services. Skipping release.")
+        return
+
+    # 2. 获取业务的路径和波长信息
+    path = allocated_data.path
+    wavelength = allocated_data.wavelength
+
+    # 3. 准备路径上的链接列表
+    link_key_list = [
+        (min(path[i], path[i + 1]), max(path[i], path[i + 1])) for i in range(len(path) - 1)
+    ]
+
+    # 4. 遍历路径上的所有链接，更新分配状态
+    for link_key in link_key_list:
+        if link_key not in allocation_status:
+            # 这通常不应该发生，除非数据不一致
+            print(f"Error: Link {link_key} not found in allocation_status during release for service {service.service_id}.")
+            continue
+
+        # 将该链接上的该波段标记为释放（空闲）
+        allocation_status[link_key][wavelength] = False
+        # 将该链接上的该波段的业务ID标记为无效（例：-1 或 0 如果ID从1开始）
+        # 假设服务ID为非负数，-1 是一个安全的值来表示未分配
+        allocated_service_idx[link_key][wavelength] = -1
+
+    # 5. 从已分配业务字典中移除该业务
+    del allocated_service_dict[service.service_id]
+
+    # 6. GSNR 重新评估（仅作说明，在此模型下非必要）
+    # 当一个业务被释放时，它所产生的干扰消失，这会导致其路径上其他所有已分配业务的 GSNR 值增加或保持不变。
+    # 因此，在此 GSNR 模型下，释放业务并不会导致其他现有业务的 SNR 需求突然不满足。
+    # 如果需要跟踪每个业务的实时 GSNR，或者在更复杂的模型中释放可能导致其他业务面临风险，
+    # 那么这里需要遍历所有受影响链接上的活性业务，重新计算它们的 GSNR。
+    # 但就“正确释放”而言，上述步骤已经足够。
+    #
+    # for link_key in link_key_list:
+    #     # Re-calculate power (excluding the released service)
+    #     power = ref_power * allocation_status[link_key] # Note: ref_power would need to be passed or accessed
+    #     _, gsnr_after_release = one_link_transmission(
+    #         link_distances[link_key], CHANNEL_NUM, power, CENTER_FREQUENCIES
+    #     )
+    #     for check_wave_id in range(CHANNEL_NUM):
+    #         if allocation_status[link_key][check_wave_id]: # If a service is still allocated here
+    #             # Update internal GSNR record for service_id_checking if needed
+    #             pass
+    print(f"Service ID {service.service_id} successfully released.")
