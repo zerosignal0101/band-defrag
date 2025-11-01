@@ -21,11 +21,11 @@ def generate_services(
 ) -> List[NetworkService]:
     node_pairs = []
 
-    link_keys = list(ksp_cache.keys())
+    edge_keys = list(ksp_cache.keys())
     for _ in range(service_num):
-        link_key = random.choice(link_keys)
-        link_key = random.choice([link_key, (link_key[1], link_key[0])])
-        node_pairs.append(link_key)
+        edge_key = random.choice(edge_keys)
+        edge_key = random.choice([edge_key, (edge_key[1], edge_key[0])])
+        node_pairs.append(edge_key)
 
     services = []
 
