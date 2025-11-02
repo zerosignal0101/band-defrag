@@ -1,5 +1,6 @@
 import time
 from collections import Counter
+import gym
 from numpy.typing import NDArray
 from typing import List, Literal, Union, Optional, Annotated, Tuple, Dict
 import numpy as np
@@ -94,6 +95,12 @@ class MultibandOpticalNetworkEnv:
             self.blocked_edge_key_list, self.allocation_status, self.allocated_service_idx
         )
         self.sorted_service_id_list = sorted(service_overlap_counts.items(), key=lambda item: item[1], reverse=True)
+
+        # gym spaces
+        self.observation_space = [gym.spaces.Box(low=0, high=1 + 1e-6, shape=(163,), dtype=float)
+                                  for n in range(self.max_agents)]
+        self.share_observation_space = self.observation_space.copy()
+        self.action_space = [gym.spaces.Discrete(80) for n in range(self.max_agents)]
 
     def reset(
             self,
@@ -214,3 +221,28 @@ class MultibandOpticalNetworkEnv:
                 allocated_service_dict=self.allocated_service_dict,
                 edge_distances=self.edge_distances
             )
+
+    def step_on_status(
+            self, actions: NDArray[int],
+            allocation_status: Dict[Tuple[int, int], NDArray[bool]],  # RW
+            allocated_service_idx: Dict[Tuple[int, int], NDArray[int]],  # RW
+            allocated_service_dict: Dict[int, AllocatedService],  # RW
+    ) -> List[AllocatedService]:
+        reallocated_services = []
+        for new_wavelength, (service_id, _) in zip(actions, self.sorted_service_id_list):
+            service_data = self.allocated_service_dict[service_id]
+            if new_wavelength == service_data.service_id:
+                continue
+            is_reallocation_success, allocated_service = try_allocate_service_on_path_wavelength(
+                service=NetworkService(**service_data.model_dump()),
+                path=service_data.path,
+                wavelength=new_wavelength,
+                allocated_service_idx=allocated_service_idx,
+                allocation_status=allocation_status,
+                allocated_service_dict=allocated_service_dict,
+                edge_distances=self.edge_distances
+            )
+            if is_reallocation_success:
+                reallocated_services.append(allocated_service)
+
+        return reallocated_services
