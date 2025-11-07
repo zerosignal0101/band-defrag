@@ -123,7 +123,7 @@ def blocking_test_with_mat(
                 defrag_timeline_events.append({
                     'timestamp': arrival_time,
                     'event_type': EVENT_REALLOCATION,
-                    'service_id': incoming_service.service_id,
+                    'service_id': reallocated_service_data.service_id,
                     'details': {
                         'source_id': idx_to_node_id[reallocated_service_data.source_id],
                         'destination_id': idx_to_node_id[reallocated_service_data.destination_id],
