@@ -124,7 +124,20 @@ def blocking_test_with_mat(
                     'timestamp': arrival_time,
                     'event_type': EVENT_REALLOCATION,
                     'service_id': incoming_service.service_id,
-                    'details': reallocated_service_data.model_dump()
+                    'details': {
+                        'source_id': idx_to_node_id[reallocated_service_data.source_id],
+                        'destination_id': idx_to_node_id[reallocated_service_data.destination_id],
+                        'arrival_time': reallocated_service_data.arrival_time,
+                        'departure_time': reallocated_service_data.departure_time,
+                        'bit_rate_requirement': reallocated_service_data.bit_rate_requirement,
+                        'snr_requirement': reallocated_service_data.snr_requirement,
+                        'path': [
+                            idx_to_node_id[idx] for idx in reallocated_service_data.path
+                        ],
+                        'wavelength': reallocated_service_data.wavelength,
+                        'power': reallocated_service_data.power,
+                        'defrag_service_id': incoming_service.service_id
+                    }
                 })
 
             is_allocation_success, allocated_service = ksp_allocate_service(
@@ -143,7 +156,19 @@ def blocking_test_with_mat(
                 'timestamp': arrival_time,
                 'event_type': EVENT_ALLOCATION,
                 'service_id': allocated_service.service_id,
-                'details': allocated_service.model_dump()
+                'details': {
+                    'source_id': idx_to_node_id[allocated_service.source_id],
+                    'destination_id': idx_to_node_id[allocated_service.destination_id],
+                    'arrival_time': arrival_time,
+                    'departure_time': allocated_service.departure_time,
+                    'bit_rate_requirement': allocated_service.bit_rate_requirement,
+                    'snr_requirement': allocated_service.snr_requirement,
+                    'path': [
+                        idx_to_node_id[idx] for idx in allocated_service.path
+                    ],
+                    'wavelength': allocated_service.wavelength,
+                    'power': allocated_service.power
+                }
             })
 
     return block_num, defrag_timeline_events

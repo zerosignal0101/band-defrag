@@ -11,6 +11,7 @@ from band_defrag.network_sim.service_generator import NetworkService
 class AllocatedService(NetworkService):
     path: List[int]
     wavelength: int
+    power: float
 
 
 CHANNEL_NUM = 80
@@ -129,6 +130,7 @@ def try_allocate_service_on_path_wavelength(
         **service.model_dump(),
         path=path,
         wavelength=wavelength,
+        power=REF_POWER[wavelength]
     )
     allocated_service_dict[allocated_service.service_id] = allocated_service
 
@@ -157,6 +159,9 @@ def ksp_allocate_service(
     if not ksp_paths:
         # print(f"No KSP paths found for service {service.service_id} between {service.source_id} and {service.destination_id}")
         return False, None
+
+    # If source is not at the start of the path, reverse it.
+    ksp_paths = ksp_paths if service.source_id == cache_key[0] else [list(reversed(p)) for p in ksp_paths]
 
     # Iterate through each KSP path
     for path in ksp_paths:

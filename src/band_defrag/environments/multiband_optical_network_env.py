@@ -62,11 +62,22 @@ class MultibandOpticalNetworkEnv:
             edge_distances: Dict[Tuple[int, int], float],  # RO
             ksp_cache: Dict[Tuple[int, int], List[List[int]]],  # RO
             allocated_service_dict: Dict[int, AllocatedService],  # RW
-            blocked_service: NetworkService  # RO
+            blocked_service: NetworkService,  # RO
+            is_dummy_env: bool = False  # RO
     ):
         super(MultibandOpticalNetworkEnv, self).__init__()
 
         self.max_agents = max_agents
+        
+        # gym spaces
+        self.observation_space = [gym.spaces.Box(low=0, high=1 + 1e-6, shape=(163,), dtype=float)
+                                for n in range(self.max_agents)]
+        self.share_observation_space = self.observation_space.copy()
+        self.action_space = [gym.spaces.Discrete(80) for n in range(self.max_agents)]
+        
+        self.is_dummy_env = is_dummy_env
+        if is_dummy_env:
+            return
 
         # Read-Only props
         self.ori_allocation_status = copy.deepcopy(allocation_status)
@@ -96,18 +107,15 @@ class MultibandOpticalNetworkEnv:
         )
         self.sorted_service_id_list = sorted(service_overlap_counts.items(), key=lambda item: item[1], reverse=True)
 
-        # gym spaces
-        self.observation_space = [gym.spaces.Box(low=0, high=1 + 1e-6, shape=(163,), dtype=float)
-                                  for n in range(self.max_agents)]
-        self.share_observation_space = self.observation_space.copy()
-        self.action_space = [gym.spaces.Discrete(80) for n in range(self.max_agents)]
-
     def reset(
             self,
             *,
             seed: Optional[int] = None,
             options: Optional[dict] = None,
     ):
+        if self.is_dummy_env:
+            return None
+        
         self.allocation_status = copy.deepcopy(self.ori_allocation_status)
         self.allocated_service_idx = copy.deepcopy(self.ori_allocated_service_idx)
         self.allocated_service_dict = copy.deepcopy(self.ori_allocated_service_dict)
@@ -208,6 +216,9 @@ class MultibandOpticalNetworkEnv:
         return np.stack(observation, axis=0)
 
     def step(self, actions: NDArray[int]):
+        if self.is_dummy_env:
+            return None
+        
         for new_wavelength, (service_id, _) in zip(actions, self.sorted_service_id_list):
             service_data = self.allocated_service_dict[service_id]
             if new_wavelength == service_data.service_id:
@@ -228,6 +239,9 @@ class MultibandOpticalNetworkEnv:
             allocated_service_idx: Dict[Tuple[int, int], NDArray[int]],  # RW
             allocated_service_dict: Dict[int, AllocatedService],  # RW
     ) -> List[AllocatedService]:
+        if self.is_dummy_env:
+            return None
+
         reallocated_services = []
         for new_wavelength, (service_id, _) in zip(actions, self.sorted_service_id_list):
             service_data = self.allocated_service_dict[service_id]
