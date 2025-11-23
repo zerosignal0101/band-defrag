@@ -202,3 +202,95 @@ def blocking_test(
         'blocknum1': blocknum_s1,
         'blocknum2': blocknum_s2
     }, defrag_timeline_events  # <-- 返回事件时间线
+
+
+def allocate_ksp_only(
+        initial_topology: DiGraph,
+        all_incoming_services: Dict[str, Service],
+        progress_desc: str = "Services"
+) -> Tuple[Dict[str, int], List[Dict[str, Any]]]:
+    """
+    Simulates optical network service blocking for ksp strategy:
+    1. No Defragmentation: Services are allocated as they arrive; if resources are
+       insufficient, they are blocked.
+    
+    Args:
+        initial_topology (Network): The initial state of the optical network topology.
+        all_incoming_services (Dict[str, Service]): A dictionary of all services
+        progress_desc (str): Description for the tqdm progress bar.
+
+    Returns:
+        Tuple[Dict[str, int], List[Dict[str, Any]]]:
+            - A dictionary containing blocking counts for ksp strategy.
+            - A timeline of events for the MAT defragmentation strategy. Each event
+              is a dictionary detailing a state change (allocation, release, etc.),
+              allowing for reconstruction of the network state at any point in time.
+    """
+
+    topology_s2 = copy.deepcopy(initial_topology)
+    service_dict_s2: Dict[str, Service] = {}
+    blocknum_s2 = 0
+    defrag_attempts_s2 = 0
+
+    # 用于存储所有状态变化事件的时间线
+    defrag_timeline_events: List[Dict[str, Any]] = []
+
+    # --- 2. 模拟服务到达与处理 ---
+    for incoming_service in tqdm(
+            all_incoming_services.values(),
+            total=len(all_incoming_services),
+            desc=progress_desc,
+            leave=True
+    ):
+        arrival_time = incoming_service.arrival_time
+
+        # --- 为策略2释放到期业务并记录事件 ---
+        expired_s2 = [
+            s for s in service_dict_s2.values()
+            if s.departure_time <= arrival_time
+        ]
+        for service in expired_s2:
+            # 在释放前记录事件
+            defrag_timeline_events.append({
+                'timestamp': arrival_time,
+                'event_type': EVENT_RELEASE_EXPIRED,
+                'service_id': service.service_id,
+                'details': {'departure_time': service.departure_time}
+            })
+            # 执行释放
+            release_service(topology_s2, service, service_dict_s2)
+
+        current_service_s2 = copy.deepcopy(incoming_service)
+        path_s2, _, _ = random_fit(topology_s2, current_service_s2, service_dict_s2)
+
+        # --- 记录新业务的最终分配/阻塞状态 ---
+        if path_s2 is None:
+            blocknum_s2 += 1
+        else:
+            allocated_service = service_dict_s2[current_service_s2.service_id]
+            defrag_timeline_events.append({
+                'timestamp': arrival_time,
+                'event_type': EVENT_ALLOCATION,
+                'service_id': allocated_service.service_id,
+                'details': allocated_service.to_dict()
+            })
+
+    # --- 为策略2释放到期业务并记录事件 ---
+    expired_s2 = [
+        s for s in service_dict_s2.values()
+    ]
+    for service in expired_s2:
+        # 在释放前记录事件
+        defrag_timeline_events.append({
+            'timestamp': service.departure_time,
+            'event_type': EVENT_RELEASE_EXPIRED,
+            'service_id': service.service_id,
+            'details': {'departure_time': service.departure_time}
+        })
+        # 执行释放
+        release_service(topology_s2, service, service_dict_s2)
+
+    return {
+        'blocknum1': blocknum_s2,
+        'blocknum2': blocknum_s2
+    }, defrag_timeline_events  # <-- 返回事件时间线
