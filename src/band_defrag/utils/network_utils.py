@@ -155,7 +155,7 @@ def read_graphml_as_topology(file, relabel_to_int=True, edge_weight_key_preferen
     return G, weight_attr
 
 
-def process_topology(topology, edge_weight_key_preference=('weight', 'length')):
+def process_topology(topology, edge_weight_key_preference=('weight', 'length'), num_channels=80):
     # 如果是 MultiGraph，先合并成简单图：保留第一条边的属性（或你也可以自定义规则）
     if isinstance(topology, (nx.MultiGraph, nx.MultiDiGraph)):
         H = nx.Graph()
@@ -211,13 +211,13 @@ def process_topology(topology, edge_weight_key_preference=('weight', 'length')):
                     G[u][v][key] = 1.0
         edge_id += 1
 
-    # 初始化每条边的 80 个频隙属性
+    # 初始化每条边的 num_channels 个频隙属性
     for u, v in G.edges():
-        wavelength_power = np.zeros(80, dtype=float)
-        wavelength_utilization = np.zeros(80, dtype=float)
-        wavelength_SNR = np.zeros(80, dtype=float)
-        wavelength_service = np.zeros(80, dtype=int)
-        wavelength_bitrate = np.zeros(80, dtype=float)
+        wavelength_power = np.zeros(num_channels, dtype=float)
+        wavelength_utilization = np.zeros(num_channels, dtype=float)
+        wavelength_SNR = np.zeros(num_channels, dtype=float)
+        wavelength_service = np.zeros(num_channels, dtype=int)
+        wavelength_bitrate = np.zeros(num_channels, dtype=float)
         G[u][v]['wavelength_power'] = wavelength_power
         G[u][v]['wavelength_utilization'] = wavelength_utilization
         G[u][v]['wavelength_SNR'] = wavelength_SNR
@@ -269,22 +269,15 @@ def process_topology(topology, edge_weight_key_preference=('weight', 'length')):
     return G, weight_attr
 
 
-def new_service(topology, services_processed_since_reset):
+def new_service(topology, upper_bitrate, services_processed_since_reset):
     '''
     生成一个随机业务
     '''
-    src, src_id, dst, dst_id = _get_node_pair(topology)
+    src, __, dst, ___ = _get_node_pair(topology)
 
     # 用自定义函数做加权采样，小比特率业务比重大
-    bit_rate_candidates = np.arange(100, 601, 10)  # 每10为一个档
+    bit_rate_candidates = np.arange(100, upper_bitrate, 10)  # 每10为一个档
     # 权重：反比于比特率，越小越重
-    # weights = 1 / bit_rate_candidates
-    # weights = weights / np.sum(weights)
-
-    # Power-law weighting
-    alpha = 1.5  # >1 则高比特率占比更小；=1 等价原实现
-    weights = 1 / (bit_rate_candidates ** alpha)
-    weights /= weights.sum()
 
     # Exponential weighting
     beta = 0.005
@@ -294,16 +287,15 @@ def new_service(topology, services_processed_since_reset):
     bit_rate = np.random.choice(bit_rate_candidates, p=weights_exp)
     # bit_rate = random.randint(100, 520)
 
-    service = Service(service_id=services_processed_since_reset, source=src, source_id=src_id,
-                      destination=dst, destination_id=dst_id,
-                      bit_rate=bit_rate)
+    service = Service(service_id=services_processed_since_reset,
+                      source_id=src, destination_id=dst, bit_rate=bit_rate)
 
     # services_processed_since_reset += 1
 
     return service
 
 
-def new_service_dict(topology, avg_arrival_interval, avg_holding_time, service_arrival_time_max):
+def new_service_dict(topology, avg_arrival_interval, avg_holding_time, service_arrival_time_max, upper_bitrate=601):
     # 定义仿真参数
     lambda_rate = 1 / avg_arrival_interval # 到达率
     mu_rate = 1 / avg_holding_time  # 持续时间的倒数
@@ -331,7 +323,7 @@ def new_service_dict(topology, avg_arrival_interval, avg_holding_time, service_a
         # 更新正在进行的呼叫数量
         calls_in_progress += 1
 
-        tmp_service = new_service(topology, total_calls + 1)
+        tmp_service = new_service(topology, upper_bitrate, total_calls + 1)
         total_calls += 1
         tmp_service.arrival_time = time
         tmp_service.departure_time = call_departure_time
@@ -751,30 +743,8 @@ def _get_node_pair(topology):
     return src, src_id, dst, dst_id
 
 
-def new_service(topology, services_processed_since_reset):
-    '''
-    生成一个随机业务
-    '''
-    src, __, dst, ___ = _get_node_pair(topology)
-
-    # 用自定义函数做加权采样，小比特率业务比重大
-    bit_rate_candidates = np.arange(100, 501, 10)  # 每10为一个档
-    # 权重：反比于比特率，越小越重
-    weights = 1 / bit_rate_candidates
-    weights = weights / np.sum(weights)
-
-    bit_rate = np.random.choice(bit_rate_candidates, p=weights)
-
-    service = Service(service_id=services_processed_since_reset, 
-                      source_id=src, destination_id=dst, bit_rate=bit_rate)
-
-    # services_processed_since_reset += 1
-
-    return service
-
-
 # 3. allocate a service
-def random_fit(topology, service: Service, service_dict):
+def random_fit(topology, service:Service, service_dict, channels, frequencies):
     '''
     input: topology, service, service.bitrate \in [400,800]
     output: path_node_list, wavelength j
@@ -786,28 +756,28 @@ def random_fit(topology, service: Service, service_dict):
     allocation = False
     reason = None
     if bit_rate > 700:
-        service.snr_requirement = 26.5 - 1
+        service.snr_requirement = 26.5-1
     elif bit_rate > 600:
-        service.snr_requirement = 25.0 - 1
+        service.snr_requirement = 25.0-1
     elif bit_rate > 500:
-        service.snr_requirement = 23.5 - 1
+        service.snr_requirement = 23.5-1
     elif bit_rate > 400:
-        service.snr_requirement = 21.0 - 1
+        service.snr_requirement = 21.0-1
     elif bit_rate > 300:
-        service.snr_requirement = 18.7 - 1
+        service.snr_requirement = 18.7-1
     else:
         service.snr_requirement = 15
 
     for path in topology.graph['ksp'][str(src), str(dst)]:
         path_start_time = time.time()
-        start_wavelength = rng1.randint(0, 80 - 1)
-        wave_reason = np.zeros(80)
-        for offset in range(80):
-            j = (start_wavelength + offset) % 80
+        start_wavelength = rng1.randint(0, channels - 1)
+        wave_reason = np.zeros(channels)
+        for offset in range(channels):
+            j = (start_wavelength + offset) % channels
             allocation = True
             outer_break = False
-            Power = np.zeros((len(path.node_list), 80), dtype=float)
-            path_GSNR = np.zeros((len(path.node_list), 80), dtype=float)
+            Power = np.zeros((len(path.node_list), channels), dtype=float)
+            path_GSNR = np.zeros((len(path.node_list), channels), dtype=float)
             for i in range((len(path.node_list) - 1)):
                 if outer_break:
                     break
@@ -816,7 +786,7 @@ def random_fit(topology, service: Service, service_dict):
 
                 # 检查波长是否空闲
                 if not (topology[u][v]['wavelength_power'][j] == 0 or (
-                        np.isnan(topology[u][v]['wavelength_power'][j]))):
+                np.isnan(topology[u][v]['wavelength_power'][j]))):
                     wave_reason[j] = 1
                     allocation = False
                     break
@@ -824,17 +794,12 @@ def random_fit(topology, service: Service, service_dict):
                     # 检查SNR是否满足要求
                     # 获取链路参数
                     distance = topology[u][v]['length']
-                    channels = 80
                     Power[i] = copy.deepcopy(topology[u][v]['wavelength_power'])
                     if j < 40:
                         service.power = 0.002754
                     else:
                         service.power = 0.003890
                     Power[i][j] = service.power
-                    frequencies = np.concatenate([
-                        np.linspace(184.4e12, 190.25e12, channels // 2),
-                        np.linspace(190.75e12, 196.6e12, channels // 2)
-                    ])
                     tmp = copy.deepcopy(Power[i])
                     tmp = np.array(tmp)
                     # 计算链路的GSNR
@@ -847,7 +812,7 @@ def random_fit(topology, service: Service, service_dict):
                         break
                     else:
                         # 检查该业务会不会对其它业务有影响，如有影响，则拒绝
-                        for m in range(80):
+                        for m in range(channels):
                             if m != j and topology[u][v]['wavelength_service'][m] != 0:
                                 tmp_service = service_dict.get(topology[u][v]['wavelength_service'][m], None)
                                 if tmp_service.snr_requirement >= GSNR[m]:
@@ -878,13 +843,13 @@ def random_fit(topology, service: Service, service_dict):
                     elif topology[u][v]['wavelength_SNR'][j] >= 15:
                         capacity = 200
                     else:
-                        capacity = 0
+                        capacity = 0.1
                     topology[u][v]['wavelength_utilization'][j] = bit_rate / capacity
                     total_utilization += bit_rate / capacity
                     topology[u][v]['wavelength_service'][j] = service.service_id
 
                     # # 重新更新涉及链路上所有波长处的带宽利用率！！！！！
-                    for wave in range(80):
+                    for wave in range(channels):
                         if wave != j and topology[u][v]['wavelength_service'][wave] != 0:
                             service_id = topology[u][v]['wavelength_service'][wave]
                             tmp_service = service_dict.get(service_id, None)
@@ -902,7 +867,7 @@ def random_fit(topology, service: Service, service_dict):
                             elif topology[u][v]['wavelength_SNR'][wave] >= 15:
                                 capacity = 200
                             else:
-                                capacity = 0
+                                capacity = 0.1
                             topology[u][v]['wavelength_utilization'][wave] = tmp_service.bit_rate / capacity
                             tmp_service.utilization = tmp_service.bit_rate / capacity
                             service_dict[tmp_service.service_id] = tmp_service
@@ -1204,18 +1169,21 @@ def select_all_related_services(service_dict, blocked_service):
 
 
 # 4. release a service
-def release_service(topology, service: Service, service_dict):
+def release_service(topology, service: Service, service_dict, frequencies=None):
     '''
     service_dict: 业务字典，键为service_id，值为service对象
     释放指定的某个业务，并更新相关链路的状态
     '''
     # 更新链路状态
     del service_dict[service.service_id]
-    channels = 80
-    frequencies = np.concatenate([
-        np.linspace(184.4e12, 190.25e12, channels // 2),
-        np.linspace(190.75e12, 196.6e12, channels // 2)
-    ])
+    if frequencies is not None:
+        channels = len(frequencies)
+    else:
+        channels = 80
+        frequencies = np.concatenate([
+            np.linspace(184.4e12, 190.25e12, channels // 2),
+            np.linspace(190.75e12, 196.6e12, channels // 2)
+        ])
     for i in range(len(service.path) - 1):
         u = service.path[i]
         v = service.path[i + 1]

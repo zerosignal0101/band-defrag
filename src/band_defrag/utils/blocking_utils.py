@@ -25,6 +25,36 @@ EVENT_ALLOCATION = 'ALLOCATION'
 EVENT_RELEASE_EXPIRED = 'RELEASE_EXPIRED'
 EVENT_REALLOCATION = 'REALLOCATION'
 
+c = 299792458.0  # 光速 [m/s]
+
+def lam2freq(lam_nm):
+    """波长 (nm) -> 频率 (Hz)"""
+    return c / (lam_nm * 1e-9)
+
+channels_per_band = 40
+# ---- U band: 1625–1675 nm -> ~179–184.5 THz ----
+f_U_min = lam2freq(1675)   # 低频：波长长
+f_U_max = lam2freq(1625)   # 高频：波长短
+freq_U = np.linspace(f_U_min, f_U_max, channels_per_band)
+
+# ---- L band: 1565–1625 nm -> ~184.5–191.6 THz ----
+f_L_min = lam2freq(1625)
+f_L_max = lam2freq(1565)
+freq_L = np.linspace(f_L_min, f_L_max, channels_per_band)
+
+# ---- C band: 1530–1565 nm -> ~191.6–195.9 THz ----
+f_C_min = lam2freq(1565)
+f_C_max = lam2freq(1530)
+freq_C = np.linspace(f_C_min, f_C_max, channels_per_band)
+
+# ---- S band: 1460–1530 nm -> ~195.9–205.3 THz ----
+f_S_min = lam2freq(1530)
+f_S_max = lam2freq(1460)
+freq_S = np.linspace(f_S_min, f_S_max, channels_per_band)
+
+NUM_CHANNELS = channels_per_band * 2
+C_L_FREQUENCIES = np.concatenate([freq_L, freq_C])
+
 
 def blocking_test(
         initial_topology: DiGraph,
@@ -110,13 +140,13 @@ def blocking_test(
         # ====== 策略 1: 不重排 (No Defragmentation) ======
         # (This part for s1 does not need to change)
         current_service_s1 = copy.deepcopy(incoming_service)
-        path_s1, _, _ = random_fit(topology_s1, current_service_s1, service_dict_s1)
+        path_s1, _, _ = random_fit(topology_s1, current_service_s1, service_dict_s1, NUM_CHANNELS, C_L_FREQUENCIES)
         if path_s1 is None:
             blocknum_s1 += 1
 
         # ====== 策略 2: MAT重排 (MAT Defragmentation) ======
         current_service_s2 = copy.deepcopy(incoming_service)
-        path_s2, _, _ = random_fit(topology_s2, current_service_s2, service_dict_s2)
+        path_s2, _, _ = random_fit(topology_s2, current_service_s2, service_dict_s2, NUM_CHANNELS, C_L_FREQUENCIES)
 
         # 如果新服务无法直接分配，尝试重排
         if path_s2 is None:
@@ -180,7 +210,7 @@ def blocking_test(
                         })
 
             # 再次尝试分配新业务
-            path_s2, _, _ = random_fit(topology_s2, current_service_s2, service_dict_s2)
+            path_s2, _, _ = random_fit(topology_s2, current_service_s2, service_dict_s2, NUM_CHANNELS, C_L_FREQUENCIES)
 
         # --- 记录新业务的最终分配/阻塞状态 ---
         if path_s2 is None:
@@ -207,7 +237,8 @@ def blocking_test(
 def allocate_ksp_only(
         initial_topology: DiGraph,
         all_incoming_services: Dict[str, Service],
-        progress_desc: str = "Services"
+        progress_desc: str = "Services",
+        num_channels: int = NUM_CHANNELS,
 ) -> Tuple[Dict[str, int], List[Dict[str, Any]]]:
     """
     Simulates optical network service blocking for ksp strategy:
@@ -218,6 +249,7 @@ def allocate_ksp_only(
         initial_topology (Network): The initial state of the optical network topology.
         all_incoming_services (Dict[str, Service]): A dictionary of all services
         progress_desc (str): Description for the tqdm progress bar.
+        num_channels (int): Number of channels in the network.
 
     Returns:
         Tuple[Dict[str, int], List[Dict[str, Any]]]:
@@ -231,6 +263,17 @@ def allocate_ksp_only(
     service_dict_s2: Dict[str, Service] = {}
     blocknum_s2 = 0
     defrag_attempts_s2 = 0
+
+    if num_channels == 40:
+        frequencies = np.concatenate([freq_C])
+    elif num_channels == 80:
+        frequencies = np.concatenate([freq_L, freq_C])
+    elif num_channels == 120:
+        frequencies = np.concatenate([freq_L, freq_C, freq_S])
+    elif num_channels == 160:
+        frequencies = np.concatenate([freq_U, freq_L, freq_C, freq_S])
+    else:
+        frequencies = []
 
     # 用于存储所有状态变化事件的时间线
     defrag_timeline_events: List[Dict[str, Any]] = []
@@ -258,10 +301,10 @@ def allocate_ksp_only(
                 'details': {'departure_time': service.departure_time}
             })
             # 执行释放
-            release_service(topology_s2, service, service_dict_s2)
+            release_service(topology_s2, service, service_dict_s2, frequencies)
 
         current_service_s2 = copy.deepcopy(incoming_service)
-        path_s2, _, _ = random_fit(topology_s2, current_service_s2, service_dict_s2)
+        path_s2, _, _ = random_fit(topology_s2, current_service_s2, service_dict_s2, num_channels, frequencies)
 
         # --- 记录新业务的最终分配/阻塞状态 ---
         if path_s2 is None:
@@ -288,7 +331,7 @@ def allocate_ksp_only(
             'details': {'departure_time': service.departure_time}
         })
         # 执行释放
-        release_service(topology_s2, service, service_dict_s2)
+        release_service(topology_s2, service, service_dict_s2, frequencies)
 
     return {
         'blocknum1': blocknum_s2,
